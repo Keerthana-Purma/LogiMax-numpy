@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, request, render_template
+import streamlit as st
 import joblib
 import numpy as np
 class Softmax_regression():
@@ -35,54 +35,33 @@ class Softmax_regression():
   def predict(self,x_test):
       x_test=np.insert(x_test,0,1,axis=1)
       return np.argmax(np.dot(x_test,self.weights.T),axis=1)
-# Load the built-in Scikit-Learn model
-model_path = 'model.pkl'
-try:
-    model_stuff = joblib.load(model_path)
-    model = model_stuff['model']
-    target_names = model_stuff['target_names']
-except FileNotFoundError:
-    print("Error: model.pkl not found. Run train.py first!")
-    model = None
-    target_names = []
 
-app = Flask(__name__)
+# Load the model
+@st.cache_resource  # Keeps the model cached in memory for speed
+def load_model():
+    model_stuff = joblib.load('model.pkl')
+    if isinstance(model_stuff, dict):
+        return model_stuff['model']
+    return model_stuff
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+model = load_model()
+target_names = ['Setosa', 'Versicolor', 'Virginica']
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    if model is None:
-        return render_template('index.html', prediction_text="Error: Model file not loaded.")
-        
-    try:
-        # 1. Extract values from form
-        float_features = [float(x) for x in request.form.values()]
-        
-        # 2. Reshape for Scikit-Learn's interface
-        final_features = np.array([float_features])
-        
-        # 3. Predict (Scikit-Learn natively converts this safely)
-        prediction_index = model.predict(final_features)[0]
-        output_species = target_names[prediction_index]
+# 2. Design the Web App Interface
+st.title("LogiMax: Flower Classifier 🌸")
+st.write("Enter the measurements below to predict the flower species.")
 
-        return render_template(
-            'index.html', 
-            prediction_text=f'Predicted Species: {output_species.capitalize()}'
-        )
-        
-    except ValueError:
-        return render_template(
-            'index.html', 
-            prediction_text='Error: Please enter valid numbers in all fields.'
-        )
-    except Exception as e:
-        return render_template(
-            'index.html', 
-            prediction_text=f'Prediction Error: {str(e)}'
-        )
+# Input fields
+sepal_length = st.number_input("Sepal Length", value=5.1)
+sepal_width = st.number_input("Sepal Width", value=3.5)
+petal_length = st.number_input("Petal Length", value=1.4)
+petal_width = st.number_input("Petal Width", value=0.2)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# Prediction Button
+if st.button("Predict Species"):
+    features = np.array([[sepal_length, sepal_width, petal_length, petal_width]])
+    prediction = model.predict(features)
+    prediction_index = int(prediction.item())
+    
+    output_species = target_names[prediction_index]
+    st.success(f"Result: {output_species} ✨")
